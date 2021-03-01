@@ -1,10 +1,8 @@
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 from bs4 import BeautifulSoup
-import requests
-import re
-
 from textwrap import shorten
-from argparse import ArgumentParser
+import requests
+
 
 SEARCH_URL = "https://duckduckgo.com/lite/?q={query}"
 
@@ -18,6 +16,7 @@ HEADERS = {
 	 "Origin": "https://lite.duckduckgo.com",
 	 "DNT": "1",
 }
+
 
 def gettext(elem):
 	return elem.text.strip().replace("\n", "  ")
@@ -35,6 +34,7 @@ class Result:
 		desc = shorten(self.desc, width)
 		return f"{self.title}\n  {desc}\n  {self.url}\n"
 
+
 def parse_results(html):
 	soup = BeautifulSoup(html, 'html.parser')
 
@@ -44,6 +44,7 @@ def parse_results(html):
 
 	results = [Result(*params) for params in zip(titles, descs, urls)]
 	return results
+
 
 def build_query(text, site):
 	if site:
@@ -55,7 +56,7 @@ def build_query(text, site):
 	return query
 
 
-def fetch_results(text, site=None):
+def search(text, site=None):
 	query = build_query(text, site)
 	url = SEARCH_URL.format(query=query)
 	
@@ -64,25 +65,3 @@ def fetch_results(text, site=None):
 	
 	html = requests.get(url, headers=HEADERS).text
 	return parse_results(html)
-
-
-def main():
-	parser = ArgumentParser()
-	parser.add_argument('-n', type=int,
-		help="Maximum number of results to return")
-	parser.add_argument('-u', '--url-only', dest="url_only", action="store_true",
-		help="Return only the urls of the results")
-	parser.add_argument('-s', '--site',
-		help="Restrict results to the domain <site>")
-	parser.add_argument("query",
-		help="The query to search")
-	
-	args = parser.parse_args()
-
-	results = fetch_results(args.query, args.site)
-	
-	for result in results[:args.n]:
-		print(result.format(url_only=args.url_only))
-
-if __name__ == "__main__":
-	main()
