@@ -1,1 +1,1 @@
-from search import search, Result
+from .search import search, Result

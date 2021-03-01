@@ -18,14 +18,14 @@ HEADERS = {
 }
 
 
-def gettext(elem):
-	return elem.text.strip().replace("\n", "  ")
+def cleantext(text):
+	return text.strip().replace("\n", "  ")
 
 class Result:
 	def __init__(self, title, desc, url):
-		self.title = gettext(title)
-		self.desc = gettext(desc)
-		self.url = gettext(url)
+		self.title = cleantext(title)
+		self.desc = cleantext(desc)
+		self.url = cleantext(url)
 
 	def format(self, width=80, url_only=False):
 		if url_only:
@@ -40,9 +40,14 @@ def parse_results(html):
 
 	titles = soup.find_all('a', class_="result-link")
 	descs = soup.find_all('td', class_="result-snippet")
-	urls = soup.find_all('span', class_="link-text")
 
-	results = [Result(*params) for params in zip(titles, descs, urls)]
+	results = []
+	for title, desc in zip(titles, descs):
+		results.append(Result(
+			title.text,
+			desc.text,
+			title['href'],
+		))
 	return results
 
 
