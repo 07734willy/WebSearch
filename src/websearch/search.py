@@ -3,6 +3,12 @@ from bs4 import BeautifulSoup
 from textwrap import shorten
 import requests
 
+from contextlib import suppress
+import pickle
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_FILENAME = os.path.join(SCRIPT_DIR, "search_cache.pkl")
 
 SEARCH_URL = "https://duckduckgo.com/lite/?q={query}"
 
@@ -34,6 +40,43 @@ class Result:
 		desc = shorten(self.desc, width)
 		return f"{self.title}\n  {desc}\n  {self.url}\n"
 
+class Search:
+	def __init__(self, text, site):
+		self.text = text.strip()
+		self.site = site
+		
+	def build_query(self):
+		if self.site:
+			search_text = f"site:{self.site} {self.text}"
+		else:
+			search_text = self.text
+		safe_text = quote(search_text)
+		query = f"{safe_text}&kl=&df="
+		return query
+
+	def search(self):
+		query = self.build_query()
+		url = SEARCH_URL.format(query=query)
+		
+		headers = dict(HEADERS)
+		headers['Content-Length'] = str(len(query))
+		
+		html = requests.get(url, headers=HEADERS).text
+		self.results = parse_results(html)
+
+	def matches(self, text, site):
+		return text.strip() == self.text and site == self.site
+
+	@classmethod
+	def load(cls):
+		with suppress(FileNotFoundError, pickle.UnpicklingError):
+			with open(CACHE_FILENAME, "rb") as f:
+				search = pickle.load(f)
+				return search
+
+	def dump(self):
+		with open(CACHE_FILENAME, "wb") as f:
+			pickle.dump(self, f)
 
 def parse_results(html):
 	soup = BeautifulSoup(html, 'html.parser')
@@ -50,23 +93,12 @@ def parse_results(html):
 		))
 	return results
 
-
-def build_query(text, site):
-	if site:
-		search_text = f"site:{site} {text}"
-	else:
-		search_text = text
-	safe_text = quote(search_text)
-	query = f"{safe_text}&kl=&df="
-	return query
-
-
 def search(text, site=None):
-	query = build_query(text, site)
-	url = SEARCH_URL.format(query=query)
+	last_search = Search.load()
+	if last_search and last_search.matches(text, site):
+		return last_search.results
 	
-	headers = dict(HEADERS)
-	headers['Content-Length'] = str(len(query))
-	
-	html = requests.get(url, headers=HEADERS).text
-	return parse_results(html)
+	new_search = Search(text, site)
+	new_search.search()
+	new_search.dump()
+	return new_search.results
