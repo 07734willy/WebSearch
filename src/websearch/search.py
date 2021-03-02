@@ -4,11 +4,11 @@ from textwrap import shorten
 import requests
 
 from contextlib import suppress
-import pickle
+import json
 import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CACHE_FILENAME = os.path.join(SCRIPT_DIR, "search_cache.pkl")
+CACHE_FILENAME = os.path.join(SCRIPT_DIR, "search_cache.json")
 
 SEARCH_URL = "https://duckduckgo.com/lite/?q={query}"
 
@@ -40,10 +40,18 @@ class Result:
 		desc = shorten(self.desc, width)
 		return f"{self.title}\n  {desc}\n  {self.url}\n"
 
+	def to_json(self):
+		return vars(self)
+
+	@classmethod
+	def from_json(self, data):
+		return Result(**data)
+
 class Search:
 	def __init__(self, text, site):
 		self.text = text.strip()
 		self.site = site
+		self.results = []
 		
 	def build_query(self):
 		if self.site:
@@ -69,14 +77,18 @@ class Search:
 
 	@classmethod
 	def load(cls):
-		with suppress(FileNotFoundError, pickle.UnpicklingError):
-			with open(CACHE_FILENAME, "rb") as f:
-				search = pickle.load(f)
+		with suppress(FileNotFoundError):
+			with open(CACHE_FILENAME, "r") as f:
+				data = json.load(f)
+				search = Search(data['text'], data['site'])
+				search.results = [Result.from_json(r) for r in data['results']]
 				return search
 
 	def dump(self):
-		with open(CACHE_FILENAME, "wb") as f:
-			pickle.dump(self, f)
+		with open(CACHE_FILENAME, "w") as f:
+			data = {'text': self.text, 'site': self.site, 'results': [
+				result.to_json() for result in self.results]}
+			json.dump(data, f)
 
 def parse_results(html):
 	soup = BeautifulSoup(html, 'html.parser')
